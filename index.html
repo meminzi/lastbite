@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>The Last Bite — Fullscreen with Cover</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#f7f2e9; }
+  /* 메인 SVG 전체 화면 */
+  object { width:100vw; height:100vh; display:block; cursor:pointer; }
+
+  /* 클릭 가능 표시(선택) */
+  .svg-hot { cursor:pointer; outline:none; }
+  .svg-hot:hover { filter:drop-shadow(0 0 0.6px #0f3d1e) brightness(0.98); }
+
+  /* ===== 모달(상세 이미지) ===== */
+  .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); z-index:50; padding:2vmin; }
+  .modal.open { display:flex; }
+  .card { position:relative; background:#fff; border-radius:16px; box-shadow:0 12px 32px rgba(0,0,0,.25); display:inline-block; max-width:96vw; max-height:96vh; }
+  .card img { display:block; width:auto; height:auto; max-width:96vw; max-height:96vh; object-fit:contain; background:#fff; border-radius:16px; }
+  .close { position:absolute; top:6px; right:6px; border:0; padding:8px 10px; border-radius:10px; background:#fff; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.15); }
+  .tag { position:absolute; left:10px; bottom:10px; background:#ffffffcc; border:1px solid #e7e7e7; border-radius:10px; padding:6px 10px; font-size:14px; }
+
+  /* ===== 표지(커버) 오버레이 ===== */
+  #cover {
+    position:fixed; inset:0; z-index:100; cursor:pointer;
+    display:flex; align-items:flex-end; justify-content:center;
+    background:#f7f2e9 center/cover no-repeat;
+    transition:opacity .45s ease;
+  }
+  #cover .hint {
+    margin:3vmin; padding:.6rem .9rem;
+    background:#ffffffcc; border:1px solid #e8e8e8; border-radius:12px;
+    font:500 14px/1 system-ui,-apple-system,"Noto Sans KR",sans-serif;
+    user-select:none;
+  }
+  #cover.hide { opacity:0; pointer-events:none; }
+</style>
+</head>
+<body>
+  <!-- 표지 오버레이: 이미지는 JS에서 세팅 -->
+  <div id="cover" role="button" aria-label="Enter">
+    <div class="hint">Tap / Click to enter</div>
+  </div>
+
+  <!-- 메인 SVG -->
+  <object id="svgMap" type="image/svg+xml" data="THELASTBITEMAINPAGE.svg"></object>
+
+  <!-- 상세 모달 -->
+  <div id="modal" class="modal" aria-modal="true" role="dialog">
+    <div class="card">
+      <button class="close" id="btnClose">✕</button>
+      <img id="infoImg" alt="">
+      <div class="tag" id="speciesTag"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  /* ====== ① 표지 세팅 ====== */
+  const COVER_IMAGE = "images/cover.png"; // <- 표지 파일 경로만 바꾸면 됨
+  const cover = document.getElementById('cover');
+  cover.style.backgroundImage = `url("${COVER_IMAGE}")`;
+
+  function enterApp(){
+    cover.classList.add('hide');
+    // 표지 사라진 뒤 키보드 포커스가 SVG로 갈 수 있도록 약간의 지연 후 포인터 해제
+    setTimeout(() => { cover.style.display = 'none'; }, 480);
+  }
+  cover.addEventListener('click', enterApp);
+  document.addEventListener('keydown', (e) => {
+    if (cover.style.display !== 'none' && (e.key === 'Enter' || e.key === ' ')) enterApp();
+  });
+
+  /* ====== ② 모달(상세 이미지) ====== */
+  const obj   = document.getElementById('svgMap');
+  const modal = document.getElementById('modal');
+  const img   = document.getElementById('infoImg');
+  const tag   = document.getElementById('speciesTag');
+  document.getElementById('btnClose').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  function closeModal(){ modal.classList.remove('open'); document.body.style.overflow=''; }
+
+  /* ====== ③ 이미지 매핑 (현재 파일 리스트 기준) ====== */
+  const IMG_MAP = {
+    amanita_abrupta:          ["images/amanita_abrupta.png"],
+    amanita_muscaria:         ["images/amanita_muscaria.png"],
+    amanita_pantherina:       ["images/amanita_pantherina.png"],
+    amanita_phalloides:       ["images/amanita_phalloides.png"],
+    chlorophyllum_molybdites: ["images/chlorophyllum_molybdites.png"],
+    conocybe_filaris:         ["images/conocybe_filaris.png"],
+    entoloma_sinuatum:        ["images/entoloma_sinuatum.png"],
+    entoloma_sinuatumm:       ["images/entoloma_sinuatumm.png"],
+    galerina_marginata:       ["images/galerina_marginata.png"],
+    gomphus_fujisanensis:     ["images/gomphus_fujisanensis.png"],
+    gyromitra_esculenta:      ["images/gyromitra_esculenta.png"],
+    lepiota_brunneoincarnata: ["images/lepiota_brunneoincarnata.png"],
+    mycena_pura:              ["images/mycena_pura.png"],
+    omphalotus_olearius:      ["images/omphalotus_olearius.png"],
+    podostroma_cornudamae:    ["images/podostroma_cornudamae.png"],
+    pseudosperma_rimosum:     ["images/pseudosperma_rimosum.png"],
+    ramaria_formosa:          ["images/ramaria_formosa.png"],
+    scleroderma_citrinum:     ["images/scleroderma_citrinum.png"]
+  };
+
+  // 프리로드(깜빡임 방지)
+  Object.values(IMG_MAP).flat().concat([COVER_IMAGE]).forEach(src => { const im = new Image(); im.src = src; });
+
+  const titleFromId = id => id.split('_').map(w => w[0].toUpperCase()+w.slice(1)).join(' ');
+
+  function openCard(id){
+    const list = IMG_MAP[id];
+    if (!list || !list.length) return;
+    tag.textContent = titleFromId(id);
+    img.src = list[0];
+    img.alt = `${tag.textContent} information card`;
+    modal.classList.add('open');
+    document.body.style.overflow='hidden';
+  }
+
+  function bindClick(el, id){
+    el.classList.add('svg-hot');
+    el.setAttribute('tabindex','0');
+    el.setAttribute('title', titleFromId(id));
+    const open = () => openCard(id);
+    el.addEventListener('click', open);
+    el.addEventListener('keypress', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
+  }
+
+  obj.addEventListener('load', () => {
+    const svgDoc = obj.contentDocument;
+    if (!svgDoc) { alert('Run with VS Code “Go Live” (not file://)'); return; }
+    const svg = svgDoc.documentElement;
+    Object.keys(IMG_MAP).forEach(id => {
+      const el = svg.getElementById(id);
+      if (el) bindClick(el, id);
+      else console.warn('ID not found in SVG:', id);
+    });
+  });
+})();
+</script>
+</body>
+</html>
